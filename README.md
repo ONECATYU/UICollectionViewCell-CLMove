@@ -5,6 +5,6 @@
 self.cl_moveEnabled = YES;    
 ///更新数据源的block(通过设置block,来更新数据)     
 -(void)cl_setMoveItemBlock:(CLMoveItemBlock)block;
-### other    
-使用collectionView的moveItemAtIndexPath:toIndexPath:实现
+### other    
+未使用ios9新增的方法,使用collectionView的moveItemAtIndexPath:toIndexPath:来实现   
     
