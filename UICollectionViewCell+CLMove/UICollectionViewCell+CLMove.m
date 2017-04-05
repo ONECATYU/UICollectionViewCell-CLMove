@@ -21,13 +21,16 @@ static const void *CL_ToIndexPathKey = &CL_ToIndexPathKey;
 - (void)setCl_moveEnabled:(BOOL)cl_moveEnabled {
     objc_setAssociatedObject(self, @selector(cl_moveEnabled), @(cl_moveEnabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (cl_moveEnabled) {
-        UIPanGestureRecognizer *panGes = [[UIPanGestureRecognizer alloc]initWithTarget:self action:@selector(cl_pan:)];
-        [self addGestureRecognizer:panGes];
+        UILongPressGestureRecognizer *longPressGes = [[UILongPressGestureRecognizer alloc]initWithTarget:self action:@selector(cl_longPress:)];
+        [self addGestureRecognizer:longPressGes];
     }
 }
 
-- (void)cl_pan:(UIPanGestureRecognizer *)pan {
-    switch (pan.state) {
+- (void)cl_longPress:(UILongPressGestureRecognizer *)longPressGes {
+    if (!self.cl_moveEnabled) {
+        return;
+    }
+    switch (longPressGes.state) {
         case UIGestureRecognizerStateBegan:
         {
             UIView *snapCell = [self cl_snapshotView];
@@ -37,6 +40,13 @@ static const void *CL_ToIndexPathKey = &CL_ToIndexPathKey;
             self.hidden = YES;
             NSIndexPath *fromIndexPath = [collectionView indexPathForCell:self];
             objc_setAssociatedObject(self, CL_FromIndexPathKey, fromIndexPath, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [UIView animateWithDuration:0.25 animations:^{
+                [UIView setAnimationCurve:7];
+                snapCell.transform = CGAffineTransformMakeScale(1.1, 1.1);
+                snapCell.layer.shadowOffset = CGSizeMake(3, 3);
+                snapCell.layer.shadowOpacity = 0.5;
+                snapCell.center = [longPressGes locationInView:collectionView];
+            }];
         }
             break;
             
@@ -44,17 +54,16 @@ static const void *CL_ToIndexPathKey = &CL_ToIndexPathKey;
         {
             UICollectionView *collectionView = [self cl_collectionViewForView:self];
             UIView *snapshotCell = objc_getAssociatedObject(self, CL_SnapshotCellKey);
-            CGPoint point = [pan translationInView:self];
-            CGPoint newCenter = CGPointMake(snapshotCell.center.x + point.x,snapshotCell.center.y + point.y);
+            CGPoint point = [longPressGes locationInView:collectionView];
+            CGPoint newCenter = CGPointMake(point.x, point.y);
             newCenter.x = MAX(0, newCenter.x);
             newCenter.x = MIN(newCenter.x, CGRectGetWidth(self.superview.frame));
             newCenter.y = MAX(0, newCenter.y);
             newCenter.y = MIN(newCenter.y, CGRectGetHeight(self.superview.frame));
             snapshotCell.center = newCenter;
-            [pan setTranslation:CGPointZero inView:self];
             NSArray *visibleCells = [collectionView visibleCells];
             for (UICollectionViewCell *cell in visibleCells) {
-                if (CGRectContainsPoint(cell.frame, newCenter)) {
+                if (CGRectContainsPoint(cell.frame, newCenter) && cell != self) {
                     NSIndexPath *fromIndexPath = [collectionView indexPathForCell:self];
                     NSIndexPath *toIndexPath = [collectionView indexPathForCell:cell];
                     [collectionView moveItemAtIndexPath:fromIndexPath toIndexPath:toIndexPath];
@@ -74,7 +83,9 @@ static const void *CL_ToIndexPathKey = &CL_ToIndexPathKey;
             if (block) {
                 NSIndexPath *fromIndexPath = objc_getAssociatedObject(self, CL_FromIndexPathKey);
                 NSIndexPath *toIndexPath = objc_getAssociatedObject(self, CL_ToIndexPathKey);
-                block(fromIndexPath, toIndexPath);
+                if (toIndexPath) {
+                    block(fromIndexPath, toIndexPath);
+                }
             }
             objc_setAssociatedObject(self, CL_FromIndexPathKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             objc_setAssociatedObject(self, CL_ToIndexPathKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -103,7 +114,9 @@ static const void *CL_ToIndexPathKey = &CL_ToIndexPathKey;
 
 - (UIView *)cl_snapshotView {
     UIImage *snap = [self cl_snapshotImage];
-    UIView *view = [[UIView alloc]initWithFrame:self.frame];
+    UIView *view = [[UIView alloc]init];
+    view.bounds = self.bounds;
+    view.center = self.center;
     view.layer.contents = (__bridge id _Nullable)([snap CGImage]);
     return view;
 }
